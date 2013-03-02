@@ -15,6 +15,7 @@ const char *PROGRAM_NAME = "distorter";
 const char *PROGRAM_VERSION = "0.1";
 const int DISTORTER_FOLLOW = 0;
 const int DISTORTER_AMPLITUDE = 1;
+const int DISTORTER_INVERT_CUTOFF = 2;
 
 float cutOffMag = 1.00; // What multiple of the current avg gets clipped
 int segmentsPerSecond = 20; // Number of sample windows to evaluate per second
@@ -22,25 +23,61 @@ int distorterType = 0; // What distorter are we using?
 float multiplier =1.0; // What should the final output be multiplied by?
 
 static int processOptions(int,char **);
+void distortFollow(int* samples, int size, int avg, void (*f)(int,int));
+void printArray(int* samples, int size);
 
 /**
  * Distort along the curve of the falloff of the wave
  */
-void distortFollow(int* samples, int size, int avg){
+void distortFollow(int* samples, int size, int avg, void (*f)(int, int)){
 	int i;
 	
 	for(i=0; i<size; ++i){
+		
 		// Is the magnitude of the sample out of bounds for us?
 		if( abs(samples[i]) < (cutOffMag * avg ) )
 			printf("%d\n", (int) (multiplier * samples[i]));
-		else {
-			if( samples[i] < 0 )
-				printf("%d\n", -1 * (int) (multiplier * cutOffMag * avg));
-			else 
-				printf("%d\n", (int) (multiplier * cutOffMag * avg));
-		}
+		// Yes? Okay, send to whatever our cutoff algorithm is
+		else 
+			(*f)(samples[i], avg);
 	}
 }
+
+////////////////////////////////////////////
+// BEGIN CUTOFF IMPLEMENTATIONS
+////////////////////////////////////////////
+
+/**
+ * Simply cutoff the samples that are over (all are presumed to
+ * be over)
+ */
+void clippingCutoff(int sample, int avg){
+	int n = 1;
+	
+	if( sample < 0 )
+		n = -1;
+	
+	// (+/-1) * (cutOffMagnitude)
+	printf("%d\n", (int) (n * (multiplier * cutOffMag * avg) ));
+}
+
+/**
+ * Invert everything that's going over the cutoff line
+ */
+void clippingInvertCutoff(int sample, int avg){
+	int n = 1;
+	int over = abs(sample) - avg;
+	
+	if( sample < 0 )
+		n = -1;
+	
+	// (+/-1) * (cutOffMagnitude) - howFarOverWasTheSample
+	printf("%d\n", (int) (n * ((multiplier * cutOffMag * avg) - over) ));
+}
+
+////////////////////////////////////////////
+// END CUTOFF IMPLEMENTATIONS
+////////////////////////////////////////////
 
 /**
  * Prints an int array
@@ -58,7 +95,7 @@ main(int argc,char **argv)
     {
 	///////////////////////////////////////
 	// STANDARD BOILER PLATE SONGLIB CODE
-    ///////////////////////////////////////
+	///////////////////////////////////////
     int argIndex = 1;
 
     int i, j, counter, sWindow, avg, numSamples;
@@ -84,7 +121,7 @@ main(int argc,char **argv)
         }
     else
         {
-        printf("usage: distort [<input rra file> [<output rra file>]]\n");
+        printf("usage: distort [args] [<input rra file> [<output rra file>]]\n");
         exit(-1);
         }
 	
@@ -93,7 +130,7 @@ main(int argc,char **argv)
 	
 	///////////////////////////////////////
 	// STANDARD BOILER PLATE SONGLIB CODE
-    ///////////////////////////////////////
+	///////////////////////////////////////
 
 	// First: load the number of samples we have
 	// then load the number of samples we have per second and divide by
@@ -122,19 +159,20 @@ main(int argc,char **argv)
 		// Find average magnitude
 		avg = avg / counter;
 		
-		// Now print, but clip everything outside of the clipping mag * average
 		if(distorterType == DISTORTER_FOLLOW)
-			distortFollow(window, sWindow, avg);
+			distortFollow(window, sWindow, avg, clippingCutoff);
+		else if(distorterType == DISTORTER_INVERT_CUTOFF)
+			distortFollow(window, sWindow, avg, clippingInvertCutoff);
 		else
 			printArray(window, sWindow);
 	}
 	
 	
-    fclose(in);
-    fclose(out);
+	fclose(in);
+	fclose(out);
 
-    return 0;
-    }
+	return 0;
+}
 
 /* only -oXXX  or -o XXX options */
 
@@ -163,25 +201,6 @@ processOptions(int argc, char **argv)
 
         switch (argv[argIndex][1])
             {
-            /*
-             * when option has an argument, do this
-             *
-             *     examples are -m4096 or -m 4096
-             *
-             *     case 'm':
-             *         MemorySize = atol(arg);
-             *         argUsed = 1;
-             *         break;
-             *
-             *
-             * when option does not have an argument, do this
-             *
-             *     example is -a
-             *
-             *     case 'a':
-             *         PrintActions = 1;
-             *         break;
-             */
 			case 'a':{
 				multiplier = atof(arg);
 				argUsed = 1;
@@ -204,6 +223,7 @@ processOptions(int argc, char **argv)
 				printf("\tAvailable types:\n");
 				printf("\t0 - Normal distorter that continues to clip even as the amplitude drops off\n");
 				printf("\t1 - Flat line distorter that only cuts signals off over a single magnitude\n");
+				printf("\t2 - Inverted cutoff distorter that flips the amplitudes beyond the cutoff limit over the cutoff limit\n");
 				printf("-h: prints this help dialog\n");
 				printf("-s N: specifies the number of samples to take per second of audio\n");
 				break;
