@@ -1,3 +1,7 @@
+/*
+ * Written by Conner Hansen, {add yourself here as you make modifications}
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -7,44 +11,60 @@
 #include <songlib/util.h>
 #include <songlib/rra.h>
 
-const char *PROGRAM_NAME = "multiReverb";
-const char *PROGRAM_VERSION = "0.12";
+const char *PROGRAM_NAME = "distorter";
+const char *PROGRAM_VERSION = "0.1";
 const int DISTORTER_FOLLOW = 0;
 const int DISTORTER_AMPLITUDE = 1;
 
-float cutOffMag = 1.75;
-int segmentsPerSecond = 20;
-int distorterType = 0;
+float cutOffMag = 1.00; // What multiple of the current avg gets clipped
+int segmentsPerSecond = 20; // Number of sample windows to evaluate per second
+int distorterType = 0; // What distorter are we using?
+float multiplier =1.0; // What should the final output be multiplied by?
 
 static int processOptions(int,char **);
 
+/**
+ * Distort along the curve of the falloff of the wave
+ */
 void distortFollow(int* samples, int size, int avg){
 	int i;
 	
 	for(i=0; i<size; ++i){
+		// Is the magnitude of the sample out of bounds for us?
 		if( abs(samples[i]) < (cutOffMag * avg ) )
-			printf("%d\n", samples[i]);
+			printf("%d\n", (int) (multiplier * samples[i]));
 		else {
 			if( samples[i] < 0 )
-				printf("%d\n", -1 * (int) (cutOffMag * avg));
+				printf("%d\n", -1 * (int) (multiplier * cutOffMag * avg));
 			else 
-				printf("%d\n", (int) (cutOffMag * avg));
+				printf("%d\n", (int) (multiplier * cutOffMag * avg));
 		}
+	}
+}
+
+/**
+ * Prints an int array
+ */ 
+void printArray(int* samples, int size){
+	int i;
+	
+	for(i=0; i<size; ++i){
+		printf("%d\n", samples[i]);
 	}
 }
 
 int
 main(int argc,char **argv)
     {
+	///////////////////////////////////////
+	// STANDARD BOILER PLATE SONGLIB CODE
+    ///////////////////////////////////////
     int argIndex = 1;
 
-    int i, j, counter, sWindow, avg;
+    int i, j, counter, sWindow, avg, numSamples;
     FILE *in,*out;
-    RRA *rra, *h;
-    int numSamples = 0;
+    RRA *rra;
     
-    
-
     argIndex = processOptions(argc,argv);
 
     if (argc-argIndex == 0)
@@ -67,15 +87,23 @@ main(int argc,char **argv)
         printf("usage: distort [<input rra file> [<output rra file>]]\n");
         exit(-1);
         }
-
-	//h = newRRAHeader();
-	//readRRAHeader(in,h,0);
+	
 	rra = readRRA(in, 0);
 	writeRRAHeader(out,rra,"modifiedBy: distort",0);
+	
+	///////////////////////////////////////
+	// STANDARD BOILER PLATE SONGLIB CODE
+    ///////////////////////////////////////
+
+	// First: load the number of samples we have
+	// then load the number of samples we have per second and divide by
+	// the number of segments we want per second
+	// then make an array of that size for our window
 	numSamples = rra->samples;
-	sWindow = numSamples / segmentsPerSecond;
+	sWindow = rra->sampleRate / segmentsPerSecond;
 	int window[sWindow];
 	
+	// Go until the end
 	for(i=0; i<numSamples; i+=sWindow){
 		counter = 0;
 		avg = 0;
@@ -94,123 +122,13 @@ main(int argc,char **argv)
 		// Find average magnitude
 		avg = avg / counter;
 		
-		// Now print, but clip everything outside of 120% of the average
+		// Now print, but clip everything outside of the clipping mag * average
 		if(distorterType == DISTORTER_FOLLOW)
 			distortFollow(window, sWindow, avg);
+		else
+			printArray(window, sWindow);
 	}
 	
-	//// I like doing the initial check. Don't just me.
-	//if( walls != NULL ){
-		//linkedLink *l = walls;
-		
-		//while( l != NULL ){
-			//// Set the delay in samples
-			////l->delay = 0.5;
-			//l->sdelay = l->delay * rra->sampleRate;
-			////l->attenuation = 0.2;
-			
-			//link *head = (link*) malloc(sizeof(link));
-			//link *tail = head;
-			
-			//head->amplitude = 0;
-			
-			//for(i = 0; i<l->sdelay; ++i){
-				//link *newTail = (link*) malloc(sizeof(link));
-				//newTail->amplitude = 0;
-				
-				//tail->next = newTail;
-				//tail = newTail;
-			//}
-			//// Complete the ring
-			//tail->next = head;
-			//l->currLink = head;
-			
-			//// Check the sdelay
-			////printf("l->sdelay: %d\n", l->sdelay);
-			
-			//if( l->sdelay > maxCycle )
-				//maxCycle = l->sdelay;
-				
-			//// Get the next set of links
-			//l = l->nextLink;
-		//}
-	//}
-	
-	//int samples = rra->samples;
-	//int loop = TRUE;
-	//int maxValue = 0;
-	//link *rraOutput = (link*) malloc(sizeof(link));
-	//link *tail = rraOutput;
-	//i = 0;
-	
-	//rraOutput->amplitude = 0;
-	//counter = 0;
-	//while(loop == TRUE){
-		//int adjS = 0;
-		//if( i < samples )
-			//adjS = rra->data[0][i];
-		////int s = rra->data[0][i];
-		////int adjS = s;
-		//linkedLink *l = walls;
-		
-		//// Cycle, adjust the value
-		//while(l != NULL){
-			//adjS += l->currLink->amplitude * l->attenuation;
-			//l = l->nextLink;
-			//counter++;
-		//}
-		//if( i < samples )
-			//adjS  = adjS / ((int) log10( counter ))+ rra->data[0][i];
-		//else
-			//adjS  = adjS / counter;
-		
-		//// Cycle again, now plug the final value back into every list
-		//l = walls;
-		//while(l != NULL){
-			//l->currLink->amplitude = adjS;
-			//l->currLink = l->currLink->next;
-			//l = l->nextLink;
-		//}
-		//if( adjS > maxValue )
-			//maxValue = adjS;
-				
-		////~ fprintf(out, "%d\n", adjS);
-		//link *newTail = (link*) malloc(sizeof(link));
-		//newTail->amplitude = adjS;
-		
-		//tail->next = newTail;
-		//tail = newTail;
-		
-		//if( i > samples ){
-			//numSamples++;
-			//if( adjS > maxValue )
-				//maxValue = adjS;
-			
-			//if( (i - samples)%maxCycle == 0 ){
-				//if( maxValue < 10 )
-					//loop = FALSE;
-				
-				//maxValue = 0;
-			//}
-		//}
-		
-		//++i;
-	//}
-	
-	
-	//link *l = rraOutput;
-	//loop = TRUE;
-	
-	//rra->samples = numSamples;
-	//writeRRAHeader(out,rra,"modifiedBy: multiReverb",0);
-	
-	//while(loop){
-		//fprintf(out, "%d\n", l->amplitude);
-		
-		//l = l->next;
-		//if(l == NULL)
-			//loop = FALSE;
-	//}
 	
     fclose(in);
     fclose(out);
@@ -264,34 +182,11 @@ processOptions(int argc, char **argv)
              *         PrintActions = 1;
              *         break;
              */
-            //case 'd':{
-				//// Distance to the wall
-				//int value = atoi(arg);
-				
-				//// Create a new linkedLink
-				//linkedLink *newLinks = (linkedLink*) malloc(sizeof(linkedLink));
-				
-				//// At 100m, the attenuation should be ~ 0.01
-				////newLinks->attenuation = 10 / (11 * value);
-				//newLinks->attenuation = 1 / pow(1.025, value);
-				//// Distance / Speed of Sound = delay
-				//newLinks->delay = 2 * value / 340.24;
-				
-				//if( walls == NULL )
-					//walls = newLinks;
-				//else {
-					//linkedLink *l = walls;
-					
-					//while( l->nextLink != NULL ){
-						//l = l->nextLink;
-					//}
-					
-					//l->nextLink = newLinks;
-				//}
-
-				//argUsed = 1;
-				//break;
-				//}
+			case 'a':{
+				multiplier = atof(arg);
+				argUsed = 1;
+				break;
+			}
 			case 'c':{
 				cutOffMag = atof(arg);
 				argUsed = 1;
@@ -304,7 +199,7 @@ processOptions(int argc, char **argv)
 			}
 			case 'h':{
 				printf("usage: distorter [args] [input, [output]]\n");
-				printf("-c N: specifies the factor at which to begin cutting off the signal. Default is 1.75 (higher gives less cuttoff)\n");
+				printf("-c N: specifies the factor at which to begin cutting off the signal. Default is 1.0 (higher gives less cuttoff)\n");
 				printf("-d N: specifies the distorter type\n");
 				printf("\tAvailable types:\n");
 				printf("\t0 - Normal distorter that continues to clip even as the amplitude drops off\n");
