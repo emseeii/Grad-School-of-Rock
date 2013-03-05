@@ -1,10 +1,12 @@
-TARGET = distort
+OUTPUT = distort
+DISTORT = distort
+FREQ = freqDetector
 
 #install		: $(TARGET)
 #		sudo cp $(TARGET) /usr/local/bin/rra$(TARGET)
 
-$(TARGET)	: $(TARGET).c
-		gcc -o $(TARGET) -Wall -g -L../../lib $(TARGET).c -L../../lib -lsong -lm
+$(OUTPUT)	: $(DISTORT).c $(FREQ).c
+		gcc -o $(OUTPUT) -Wall -g -L../../lib $(DISTORT).c $(FREQ).c -L../../lib -lsong -lm
 
 .PHONY: clean
 

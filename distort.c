@@ -8,8 +8,10 @@
 #include <string.h>
 #include <math.h>
 #include <assert.h>
+#include <stdbool.h>
 #include <songlib/util.h>
 #include <songlib/rra.h>
+#include "freqDetector.h"
 
 const char *PROGRAM_NAME = "distorter";
 const char *PROGRAM_VERSION = "0.1";
@@ -19,6 +21,7 @@ const int DISTORTER_INVERT_CUTOFF = 2;
 
 float cutOffMag = 1.00; // What multiple of the current avg gets clipped
 int segmentsPerSecond = 20; // Number of sample windows to evaluate per second
+int samplesPerFrequencySample = 16000;
 int distorterType = 0; // What distorter are we using?
 float multiplier =1.0; // What should the final output be multiplied by?
 
@@ -90,13 +93,26 @@ void printArray(int* samples, int size){
 	}
 }
 
+void runFrequencyDetection(int* samples, int start, int stop){
+	int i, subSamples[stop - start];
+	
+	for(i=0; i<stop-start; ++i){
+		subSamples[i] = samples[i + start];
+	}
+	
+	detectFrequency(subSamples, stop - start);
+}
+
 int
 main(int argc,char **argv)
     {
 	///////////////////////////////////////
 	// STANDARD BOILER PLATE SONGLIB CODE
 	///////////////////////////////////////
-    int argIndex = 1;
+	int argIndex = 1;
+	currentFrequencySamples = 0;
+	currentFrequency = 0.0;
+	verbose = false;
 
     int i, j, counter, sWindow, avg, numSamples;
     FILE *in,*out;
@@ -126,7 +142,8 @@ main(int argc,char **argv)
         }
 	
 	rra = readRRA(in, 0);
-	writeRRAHeader(out,rra,"modifiedBy: distort",0);
+	
+	
 	
 	///////////////////////////////////////
 	// STANDARD BOILER PLATE SONGLIB CODE
@@ -138,7 +155,27 @@ main(int argc,char **argv)
 	// then make an array of that size for our window
 	numSamples = rra->samples;
 	sWindow = rra->sampleRate / segmentsPerSecond;
+	sampleRate = rra->sampleRate;
 	int window[sWindow];
+	int fSamples[samplesPerFrequencySample];
+	
+	for(i=0; i<samplesPerFrequencySample; ++i){
+		fSamples[i] = rra->data[0][i];
+	}
+	
+	// Find the frequency at the start
+	runFrequencyDetection(fSamples, 0, samplesPerFrequencySample);
+	// Only print out the header if we're not looking for verbose
+	// frequency output
+	if( !verbose ) {
+		char output[100];
+		char index[50];
+		strcpy(output, "modifiedBy: distort\n");
+		strcat(output, "frequency: ");
+		sprintf(index, "%f", currentFrequency);
+		strcat(output, index);
+		writeRRAHeader(out,rra,output, 0);
+	}
 	
 	// Go until the end
 	for(i=0; i<numSamples; i+=sWindow){
@@ -151,6 +188,8 @@ main(int argc,char **argv)
 				window[j] = rra->data[0][i + j];
 				++counter;
 				avg += abs(window[j]);
+				
+				//index = index % samplesPerFrequencySample;
 			} else {
 				window[j] = 0;
 			}
@@ -159,12 +198,14 @@ main(int argc,char **argv)
 		// Find average magnitude
 		avg = avg / counter;
 		
-		if(distorterType == DISTORTER_FOLLOW)
-			distortFollow(window, sWindow, avg, clippingCutoff);
-		else if(distorterType == DISTORTER_INVERT_CUTOFF)
-			distortFollow(window, sWindow, avg, clippingInvertCutoff);
-		else
-			printArray(window, sWindow);
+		if( !verbose ){
+			if(distorterType == DISTORTER_FOLLOW)
+				distortFollow(window, sWindow, avg, clippingCutoff);
+			else if(distorterType == DISTORTER_INVERT_CUTOFF)
+				distortFollow(window, sWindow, avg, clippingInvertCutoff);
+			else
+				printArray(window, sWindow);
+		}
 	}
 	
 	
@@ -224,13 +265,19 @@ processOptions(int argc, char **argv)
 				printf("\t0 - Normal distorter that continues to clip even as the amplitude drops off\n");
 				printf("\t1 - Flat line distorter that only cuts signals off over a single magnitude\n");
 				printf("\t2 - Inverted cutoff distorter that flips the amplitudes beyond the cutoff limit over the cutoff limit\n");
-				printf("-h: prints this help dialog\n");
-				printf("-s N: specifies the number of samples to take per second of audio\n");
+				printf("-h - prints this help dialog\n");
+				printf("-p - print out frequency information, suppresses amplitude dump\n");
+				printf("-s N - specifies the number of samples to take per second of audio\n");
+				
 				break;
 			}
 			case 's':{
 				segmentsPerSecond = atoi(arg);
 				argUsed = 1;
+				break;
+			}
+			case 'p':{
+				verbose = true;
 				break;
 			}
             case 'v':
