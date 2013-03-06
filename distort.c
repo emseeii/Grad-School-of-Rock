@@ -20,10 +20,11 @@ const int DISTORTER_AMPLITUDE = 1;
 const int DISTORTER_INVERT_CUTOFF = 2;
 
 float cutOffMag = 1.00; // What multiple of the current avg gets clipped
-int segmentsPerSecond = 20; // Number of sample windows to evaluate per second
+int segmentsPerSecond = -1; // Number of sample windows to evaluate per second
 int samplesPerFrequencySample = 16000;
 int distorterType = 0; // What distorter are we using?
-float multiplier =1.0; // What should the final output be multiplied by?
+float multiplier = 1.0; // What should the final output be multiplied by?
+float secondsToExtend = 0; // How long should the sample be elongated?
 
 static int processOptions(int,char **);
 void distortFollow(int* samples, int size, int avg, void (*f)(int,int));
@@ -83,6 +84,32 @@ void clippingInvertCutoff(int sample, int avg){
 ////////////////////////////////////////////
 
 /**
+ * Finds the average over a range of samples
+ */
+int findAverage(int* samples, int size){
+	int i, avg = 0;
+	
+	for(i=0; i<size; ++i){
+		avg += abs(samples[i]);
+	}
+	
+	return avg / size;
+}
+
+/**
+ * Finds the last occurence of a particular value in a set of samples
+ */
+int findLastValueIndex(int value, int *samples, int size){
+	int i, returnIndex = -1;
+	
+	for(i=size-1; i>=0 && returnIndex == -1; --i)
+		if( abs(samples[i]) >= value )
+			returnIndex = i;
+	
+	return returnIndex;
+}
+
+/**
  * Prints an int array
  */ 
 void printArray(int* samples, int size){
@@ -93,6 +120,9 @@ void printArray(int* samples, int size){
 	}
 }
 
+/**
+ * Detects the frequency across a specific range of samples
+ */
 void runFrequencyDetection(int* samples, int start, int stop){
 	int i, subSamples[stop - start];
 	
@@ -100,6 +130,7 @@ void runFrequencyDetection(int* samples, int start, int stop){
 		subSamples[i] = samples[i + start];
 	}
 	
+	// Detects the actual frequency
 	detectFrequency(subSamples, stop - start);
 }
 
@@ -154,9 +185,7 @@ main(int argc,char **argv)
 	// the number of segments we want per second
 	// then make an array of that size for our window
 	numSamples = rra->samples;
-	sWindow = rra->sampleRate / segmentsPerSecond;
 	sampleRate = rra->sampleRate;
-	int window[sWindow];
 	int fSamples[samplesPerFrequencySample];
 	
 	for(i=0; i<samplesPerFrequencySample; ++i){
@@ -165,13 +194,22 @@ main(int argc,char **argv)
 	
 	// Find the frequency at the start
 	runFrequencyDetection(fSamples, 0, samplesPerFrequencySample);
+	
+	if( segmentsPerSecond == -1 )
+		segmentsPerSecond = sampleRate / currentFrequencySamples;
+	
+	sWindow = sampleRate / (2 * segmentsPerSecond);
+	int window[sWindow];
+	int overallAverage = findAverage(rra->data[0], numSamples);
+	int index = findLastValueIndex(overallAverage * 2, rra->data[0], numSamples);
+	
 	// Only print out the header if we're not looking for verbose
 	// frequency output
 	if( !verbose ) {
 		char output[100];
 		char index[50];
 		strcpy(output, "modifiedBy: distort\n");
-		strcat(output, "frequency: ");
+		strcat(output, "detectedFrequency: ");
 		sprintf(index, "%f", currentFrequency);
 		strcat(output, index);
 		writeRRAHeader(out,rra,output, 0);
@@ -188,8 +226,6 @@ main(int argc,char **argv)
 				window[j] = rra->data[0][i + j];
 				++counter;
 				avg += abs(window[j]);
-				
-				//index = index % samplesPerFrequencySample;
 			} else {
 				window[j] = 0;
 			}
@@ -266,9 +302,15 @@ processOptions(int argc, char **argv)
 				printf("\t1 - Flat line distorter that only cuts signals off over a single magnitude\n");
 				printf("\t2 - Inverted cutoff distorter that flips the amplitudes beyond the cutoff limit over the cutoff limit\n");
 				printf("-h - prints this help dialog\n");
+				printf("-l N - extends the sample to the specified length\n");
 				printf("-p - print out frequency information, suppresses amplitude dump\n");
 				printf("-s N - specifies the number of samples to take per second of audio\n");
 				
+				break;
+			}
+			case 'l':{
+				secondsToExtend = atof(arg);
+				argUsed = 1;
 				break;
 			}
 			case 's':{
