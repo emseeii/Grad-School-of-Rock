@@ -17,12 +17,20 @@ bool printFrequency = false;
 bool printNote = false;
 bool printStepSize = false;
 
+/**
+ * Calculate the squared error between the expected and actual
+ * values
+ */
 int calcError(int exp, int act){
 	int r = (act - exp) / 100;
 	
 	return r * r;
 }
 
+/**
+ * Normalizes the input array into a double array with values
+ * between 0.0 and 1.0
+ */
 void normalize(int *in, double *out, int size){
 	int i, max = 0;
 	
@@ -38,6 +46,10 @@ void normalize(int *in, double *out, int size){
 	}
 }
 
+/**
+ * Finds the minimum value and returns the index for that
+ * value
+ */
 int findMin(int *in, int size){
 	int i, minAmp, minIndex = 0;
 	
@@ -52,6 +64,10 @@ int findMin(int *in, int size){
 	return minIndex;
 }
 
+/**
+ * Finds the minimum value within a double array and returns
+ * the index for that value
+ */
 int finddMin(double *in, int start, int size){
 	int i, minIndex = start;
 	double minAmp = 0.0;
@@ -67,11 +83,25 @@ int finddMin(double *in, int start, int size){
 	return minIndex;
 }
 
-void printdArr(double *in, int size){
+/**
+ * Prints out a double array
+ */
+void printdArray(double *in, int size){
 	int i;
 	
 	for(i=0; i<size; ++i){
 		printf("%f\n", in[i]);
+	}
+}
+
+/**
+ * Prints an int array
+ */ 
+void printArray(int* samples, int size){
+	int i;
+	
+	for(i=0; i<size; ++i){
+		printf("%d\n", samples[i]);
 	}
 }
 
