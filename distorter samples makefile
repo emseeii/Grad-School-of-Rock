@@ -1,0 +1,42 @@
+#Place the names of all your tracks here (as RRA filenames)
+
+DISTORT = ../utils/distort/distort
+
+all : quickstart
+
+quickstartClean	: 
+		rplay quickstart.rra
+
+quickstart1	: 
+		$(DISTORT) -c0.25 -a2 -d2 -s1.0 quickstart.rra | rplay
+		
+quickstart2	: 
+		$(DISTORT) -c0.25 -a2.5 -d0 -s1.0 quickstart.rra | rplay
+		
+guitarClean	: 
+		rplay note_5c.rra
+
+guitar1	: 
+		$(DISTORT) -c0.2 -a2 -d2 -s1.0 note_5c.rra | rplay
+
+guitar2	: 
+		$(DISTORT) -c0.25 -a2.5 -d0 -s1.0 note_5c.rra | rplay
+
+noMetal:
+		rplay guitar2.rra
+
+aLittleMetal:
+		$(DISTORT) -c 0.5 -a 4 -s500 -d 0 guitar2.rra | rplay
+
+aLittleMoreMetal:
+		$(DISTORT) -c0.05 -a30 -d0 -s 500 guitar2.rra | rplay
+
+drumsClean :
+		rrafastmixer drums.rra drumsBass.rra | rplay
+
+drums :
+		$(DISTORT) -c0.15 -a4.2 -d2 drums.rra > d1.rra
+		$(DISTORT) -c0.05 -a20 -d0 drumsBass.rra > d2.rra
+		rrafastmixer d1.rra d2.rra | rplay
+		rm d1.rra d2.rra
+		
