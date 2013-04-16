@@ -143,7 +143,7 @@ detectFrequency(int *data, int numSamples)
 			}
 		}
 		
-		// Algorithm
+		// Algorithm:
 		// Get sample window
 		// Move down by x distance where x is the current frequency
 		// being tested, ranging from minFrame to maxFrame
@@ -174,6 +174,7 @@ detectFrequency(int *data, int numSamples)
 	double confidence = 0.0;
 	int count = 3;
 	
+	// Find the best matching frequency
 	while( search ){
 		int currGuess = finddMin(nError, start, currFrameSize);
 		
@@ -181,6 +182,11 @@ detectFrequency(int *data, int numSamples)
 			bestGuess = currGuess;
 			confidence = nError[bestGuess];
 		} else {
+			// if the current guess != the best guess and
+			// the error at the current guess is less than
+			// the error of the best guess within some tolerance
+			// or if the error at the best guess is below our
+			// noise tolerance, then continue
 			if( currGuess != bestGuess &&
 					(nError[currGuess] <= 
 					(nError[bestGuess] + tolerance * nError[bestGuess]) ||

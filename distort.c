@@ -16,6 +16,8 @@
 
 const char *PROGRAM_NAME = "distorter";
 const char *PROGRAM_VERSION = "0.1";
+const char *TYPE_DEFAULT = "default";
+const char *TYPE_GRUFF = "gruff";
 const int DISTORTER_FOLLOW = 0;
 const int DISTORTER_AMPLITUDE = 1;
 const int DISTORTER_INVERT_CUTOFF = 2;
@@ -60,12 +62,14 @@ void distortFollow(int* samples, int size, int avg, void (*f)(int, int)){
  * @param lastValue - the 
  */
 int 
-distortFull(int* samples, int size, int minIndex, int maxIndex, int lastValue, void (*f)(int, int)){
+distortFull(int* samples, int size, int minIndex, int maxIndex, int lastValue, void (*f)(int, int, int, int)){
 	int i;
 	
 	for(i=0; i<size; ++i){
-		(*f)(samples[i], i, min, max);
+		(*f)(samples[i], i, minIndex, maxIndex);
 	}
+	
+	return 0;
 }
 
 ////////////////////////////////////////////
@@ -161,11 +165,8 @@ main(int argc,char **argv)
         }
 	
 	rra = readRRA(in, 0);
-	
-	
-	
 	///////////////////////////////////////
-	// STANDARD BOILER PLATE SONGLIB CODE
+	// END STANDARD BOILER PLATE SONGLIB CODE
 	///////////////////////////////////////
 
 	// First: load the number of samples we have
@@ -239,6 +240,27 @@ main(int argc,char **argv)
 	return 0;
 }
 
+/**
+ * Compares two strings for equality.
+ */
+static bool
+comp(char *left, char *right){
+	int index = 0;
+	bool matches = true;
+	
+	while( left[index] != 0 || right[index] != 0){
+		if( left[index] != right[index] )
+			matches = false;
+		
+		++index;
+	}
+	
+	if( left[index] != 0 || right[index] != 0 )
+		matches = false;
+	
+	return matches;
+}
+
 /* only -oXXX  or -o XXX options */
 
 static int
@@ -283,17 +305,22 @@ processOptions(int argc, char **argv)
 			}
 			case 'h':{
 				printf("usage: distorter [args] [input, [output]]\n");
-				printf("-c N: specifies the factor at which to begin cutting off the signal. Default is 1.0 (higher gives less cuttoff)\n");
-				printf("-d N: specifies the distorter type\n");
+				printf("-c [N]: specifies the factor at which to begin cutting off the signal. Default is 1.0 (higher gives less cuttoff)\n");
+				printf("-d [N]: specifies the distorter type\n");
 				printf("\tAvailable types:\n");
 				printf("\t0 - Normal distorter that continues to clip even as the amplitude drops off\n");
 				printf("\t1 - Flat line distorter that only cuts signals off over a single magnitude\n");
 				printf("\t2 - Inverted cutoff distorter that flips the amplitudes beyond the cutoff limit over the cutoff limit\n");
 				printf("-h - prints this help dialog\n");
-				printf("-l N - extends the sample to the specified length\n");
+				printf("-l [N] - extends the sample to the specified length\n");
 				printf("-p - print out frequency information, suppresses amplitude dump\n");
-				printf("-s N - specifies the ratio by which to multiply the sample rate frame size \n");
+				printf("-t - use a template\n");
+				printf("\tdefault - use all default settings, gives a lessened distortion effect\n");
+				printf("\tgruff - use rougher settings, more of a metal sound\n");
+				printf("\t\n");
+				printf("-s [N] - specifies the ratio by which to multiply the sample rate frame size \n");
 				
+				exit(0);
 				break;
 			}
 			case 'l':{
@@ -314,12 +341,33 @@ processOptions(int argc, char **argv)
 				verbose = true;
 				break;
 			}
+			case 't':{
+				int type = -1;
+				
+				if( comp( arg, TYPE_DEFAULT )) {
+					type = 0;
+					distorterType = DISTORTER_FOLLOW;
+				} else if( comp( arg, TYPE_GRUFF )) {
+					type = 1;
+					distorterType = DISTORTER_INVERT_CUTOFF;
+					cutOffMag = 0.2;
+					multiplier = 2.0;
+				}
+				
+				if( type == -1 ) {
+					printf("No template found!\n");
+					exit(1);
+				}
+				
+				argUsed = 1;
+				break;
+			}
             case 'v':
                 printf("%s version %s\n", PROGRAM_NAME, PROGRAM_VERSION);
                 exit(0);
                 break;
             default:
-                Fatal("option %s not understood\n",argv[argIndex]);
+                Fatal("option %s not understood\n", argv[argIndex]);
             }
 
         if (separateArg && argUsed)
