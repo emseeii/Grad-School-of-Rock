@@ -18,11 +18,13 @@ const char *PROGRAM_NAME = "distorter";
 const char *PROGRAM_VERSION = "0.1";
 const char *TYPE_DEFAULT = "default";
 const char *TYPE_GRUFF = "gruff";
+const char *TYPE_METAL = "metal";
 const int DISTORTER_FOLLOW = 0;
 const int DISTORTER_AMPLITUDE = 1;
 const int DISTORTER_INVERT_CUTOFF = 2;
 
 float cutOffMag = 1.00; // What multiple of the current avg gets clipped
+float fadeOut = 0.0; // How long of a fade out should we use
 int segmentsPerSecond = -1; // Number of sample windows to evaluate per second
 double segmentsSubdivide = 1.0; // Number of times to divide the segments
 int samplesPerFrequencySample = 16000;
@@ -126,6 +128,21 @@ void runFrequencyDetection(int *samples, int start, int stop){
 	detectFrequency(subSamples, stop - start);
 }
 
+void fadeByAmount(int *samples, int numSamples, int samplesToFadeOut){
+	i = numSamples - samplesToFadeOut;
+	
+	if( i < 0 )
+		i = 0;
+	
+	float fadeIncrement = 1.0 / (numSamples - i);
+	float currentIncrement = 1.0 - fadeIncrement;
+	
+	for(i=numSamples - samplesToFadeOut; i<numSamples; ++i){
+		data[i] = (int) data[i] * currentIncrement;
+		currentIncrement -= fadeIncrement;
+	}
+}
+
 int
 main(int argc,char **argv)
     {
@@ -175,7 +192,7 @@ main(int argc,char **argv)
 	// then make an array of that size for our window
 	numSamples = rra->samples;
 	sampleRate = rra->sampleRate;
-	int *fSamples;
+	int *fSamples = malloc( sizeof(int) * numSamples );
 	getSubarray(rra->data[0], &fSamples, 0, samplesPerFrequencySample);
 	
 	// Find the frequency at the start
@@ -187,10 +204,38 @@ main(int argc,char **argv)
 	
 	sWindow = sampleRate / segmentsPerSecond;
 	int window[sWindow];
+	int samplesToFadeOut = (int) sampleRate * fadeOut;
+	
+	// So, they entered total clip length, which means we need to convert
+	// from total clip length to percentage increase...
+	// Which would be: clip length that we want / original length of clip
+	// ex: if we wanted a clip to be 5 seconds long, and it's originally
+	// 1 second long (44,100 samples @ 44,100 samples/s) then we'd have
+	// a length multiplier = 5 / 1 = 5;
+	float lengthMultiplier = secondsToExtend / (numSamples / sampleRate) ;
+	
+	// We don't handle shortening
+	if( lengthMultiplier < 1.0 )
+		lengthMultiplier = 1.0;
 	
 	// Now, extend the clip by the amount specified
 	int *data;
-	extendClip(rra->data[0], &data, numSamples, 1.0);
+	rra->samples = extendClip(rra->data[0], &data, numSamples, lengthMultiplier);
+	numSamples = rra->samples;
+	
+	// Figure out where to start the fadeout
+	//i = numSamples - samplesToFadeOut;
+	
+	//if( i < 0 )
+		//i = 0;
+	
+	//float fadeIncrement = 1.0 / (numSamples - i);
+	//float currentIncrement = 1.0 - fadeIncrement;
+	
+	//for(i=numSamples - samplesToFadeOut; i<numSamples; ++i){
+		//data[i] = (int) data[i] * currentIncrement;
+		//currentIncrement -= fadeIncrement;
+	//}
 	
 	// Only print out the header if we're not looking for verbose
 	// frequency output
@@ -244,17 +289,19 @@ main(int argc,char **argv)
  * Compares two strings for equality.
  */
 static bool
-comp(char *left, char *right){
+comp(char *left, const char *right){
 	int index = 0;
 	bool matches = true;
 	
-	while( left[index] != 0 || right[index] != 0){
+	while( left[index] != 0 && right[index] != 0){
 		if( left[index] != right[index] )
 			matches = false;
 		
 		++index;
 	}
 	
+	// if either isn't equal to the terminating character
+	// then it wasn't finished processing.
 	if( left[index] != 0 || right[index] != 0 )
 		matches = false;
 	
@@ -303,6 +350,11 @@ processOptions(int argc, char **argv)
 				argUsed = 1;
 				break;
 			}
+			case 'f':{
+				fadeOut = atof(arg);
+				argUsed = 1;
+				break;
+			}
 			case 'h':{
 				printf("usage: distorter [args] [input, [output]]\n");
 				printf("-c [N]: specifies the factor at which to begin cutting off the signal. Default is 1.0 (higher gives less cuttoff)\n");
@@ -311,6 +363,7 @@ processOptions(int argc, char **argv)
 				printf("\t0 - Normal distorter that continues to clip even as the amplitude drops off\n");
 				printf("\t1 - Flat line distorter that only cuts signals off over a single magnitude\n");
 				printf("\t2 - Inverted cutoff distorter that flips the amplitudes beyond the cutoff limit over the cutoff limit\n");
+				printf("-f [N]: specifies the number of seconds to fade out over. Default is 0. \n");
 				printf("-h - prints this help dialog\n");
 				printf("-l [N] - extends the sample to the specified length\n");
 				printf("-p - print out frequency information, suppresses amplitude dump\n");
@@ -352,6 +405,11 @@ processOptions(int argc, char **argv)
 					distorterType = DISTORTER_INVERT_CUTOFF;
 					cutOffMag = 0.2;
 					multiplier = 2.0;
+				} else if( comp( arg, TYPE_METAL )) {
+					type = 2;
+					distorterType = DISTORTER_INVERT_CUTOFF;
+					cutOffMag = 0.05;
+					multiplier = 10.0;
 				}
 				
 				if( type == -1 ) {

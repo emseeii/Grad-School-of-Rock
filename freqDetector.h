@@ -9,4 +9,5 @@ void normalize(int *in, double *out, int size);
 void printdArray(double *in, int size);
 void printArray(int* samples, int size);
 int detectFrequency(int *data, int numSamples);
+int calcError(int exp, int act);
 #endif
