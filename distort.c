@@ -100,7 +100,7 @@ int distortSawtooth(int* samples, int size)
 	place = 0;
 	while(place < size)
 	{
-		samples[place] = ((int) (samples[place] * cutOffMag)) + (min+(slope*place));
+		samples[place] = (int) (multiplier * ((samples[place] * cutOffMag) + min+slope*place));
 		//printf("Sample2:%d , Max:%d , Min:%d \n", samples[place], max, min);
 		printf("%d\n", samples[place]);
 		place++;
