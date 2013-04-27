@@ -23,7 +23,12 @@ int addOntoSample(int **data, int **add, int index, int avg, int blockSize, int 
 	int stop = start;
 	
 	for(i=0; i<addSize; i += blockSize){
-		int dataMax = findMaxMagnitude(data, start + i, blockSize);
+		int dataMax;
+		
+		if( start + i + blockSize >= dataSize )
+			dataMax = findMaxMagnitude(data, start + i, blockSize - (start + i + blockSize - dataSize));
+		else
+			dataMax = findMaxMagnitude(data, start + i, blockSize);
 		
 		// Find the percent difference
 		float multiplier = ((float) avg - dataMax) / avg;
@@ -35,7 +40,7 @@ int addOntoSample(int **data, int **add, int index, int avg, int blockSize, int 
 		
 		for(j=0; j<blockSize; ++j){
 			if( i + j < addSize && start + i + j < dataSize )
-				data[0][start + i + j] += (int) (add[0][i + j] * multiplier);
+				data[0][start + i + j] += (int) (add[0][i + j] * (multiplier + multiplier / 100));
 		}
 		
 		++stop;
@@ -48,18 +53,20 @@ int addOntoSample(int **data, int **add, int index, int avg, int blockSize, int 
  * Finds the best matching index to begin inserting the wave sample
  */
 int findBestMatch(int **arr1, int **arr2, int start, int numChecks, int numSamples){
-	int i, j, currStart = start - numChecks/2, bestMatch = 0;
+	int i, j, currStart = start - numChecks/2, bestMatch = 0, count;
 	int avgChecks[numChecks];
 	float mse;
 	
 	for(i=0; i<numChecks; ++i){
 		mse = 0.0;
+		count = 0;
 		
-		for(j=0; j<numSamples; ++j){
+		for(j=0; currStart + j<numSamples && j < 1000; ++j){
 			mse += calcError(arr1[0][currStart+j], arr2[0][j]);
+			++count;
 		}
 		
-		avgChecks[i] = mse / numSamples;
+		avgChecks[i] = mse / count;
 		
 		++currStart;
 	}
@@ -79,12 +86,15 @@ int findBestMatch(int **arr1, int **arr2, int start, int numChecks, int numSampl
 int findMaxMagnitude(int **in, int start, int count){
 	int i, maxAmp;
 	
-	maxAmp = abs(in[0][start]);
-	for(i=start; i< start + count; ++i){
-		if( abs(in[0][i]) > maxAmp ){
-			maxAmp = abs(in[0][i]);
+	if( count > 0 ){
+		maxAmp = abs(in[0][start]);
+		for(i=start; i< start + count; ++i){
+			if( abs(in[0][i]) > maxAmp ){
+				maxAmp = abs(in[0][i]);
+			}
 		}
-	}
+	} else 
+		maxAmp = 0;
 	
 	return maxAmp;
 }
