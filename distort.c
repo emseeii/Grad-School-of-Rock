@@ -18,13 +18,13 @@ const char *PROGRAM_NAME = "distorter";
 const char *PROGRAM_VERSION = "0.1";
 const char *TYPE_DEFAULT = "default";
 const char *TYPE_GRUFF = "gruff";
-const char *TYPE_METAL = "metal";
+const char *TYPE_SAWTOOTH = "sawtooth";
 const int DISTORTER_FOLLOW = 0;
 const int DISTORTER_AMPLITUDE = 1;
 const int DISTORTER_INVERT_CUTOFF = 2;
+const int DISTORTER_SAWTOOTH = 3;
 
 float cutOffMag = 1.00; // What multiple of the current avg gets clipped
-float fadeOut = 0.0; // How long of a fade out should we use
 int segmentsPerSecond = -1; // Number of sample windows to evaluate per second
 double segmentsSubdivide = 1.0; // Number of times to divide the segments
 int samplesPerFrequencySample = 16000;
@@ -74,6 +74,125 @@ distortFull(int* samples, int size, int minIndex, int maxIndex, int lastValue, v
 	return 0;
 }
 
+/**
+* Distorts the wave into a sawtooth pattern
+*/
+int distortSawtooth(int* samples, int size)
+{
+	int place = 0;
+	int max = -5000;
+	int min = 5000;
+	while(place < size)
+	{
+		//printf("Sample:%d , Max:%d , Min:%d \n", samples[place], max, min);
+		if(samples[place] < min)
+			min = samples[place];
+		
+		if(samples[place] > max)
+			max = samples[place];
+		place++;
+	}
+	//printf("size:%d , Max:%d , Min:%d \n", size, max, min);
+	int slope = (max-min)/size;
+	//printf("slope:%d \n", slope);
+	place = 0;
+	while(place < size)
+	{
+		samples[place] = min+(slope*place);
+		//printf("Sample2:%d , Max:%d , Min:%d \n", samples[place], max, min);
+		printf("%d\n", samples[place]);
+		place++;
+	}
+	//int  number;
+
+		//printf("Type in a number \n");
+		//scanf("%d", &number);
+	
+	return 0;
+}
+
+
+/**
+* Distorts the wave into a sawtooth pattern
+
+int distortSawtooth(int* samples, int size)
+{
+	
+	while(place<size)
+	{
+		int place = 0;
+		int start = 0;
+		int max = -5000;
+		int min = 5000;
+		int zero1 = 0;
+		int zero2 = 0;
+		int goingUp = 0;
+		if(samples[place]<samples[place+1])
+			goingUp = 1;
+		start = place;
+		while((zero2 == 0) && place<size)
+		{
+			if(goingUp)
+			{
+				if(samples[place]>samples[max])
+					max = place;
+				else goingUp = 0;
+				if(place+1<size)
+				{
+					if(samples[place]<0 && samples[place+1]>=0)
+					{
+						if(zero1 == 0)
+							zero1 = place;
+						else
+							zero2 = place;
+					}
+				}
+			}
+			else
+			{
+				if(samples[place]<samples[min])
+					min = place;
+				else goingUp = 1;
+				if(place+1<size)
+				{
+					if(samples[place]>0 && samples[place+1]<=0)
+					{
+						if(zero1 == 0)
+							zero1 = place;
+						else
+							zero2 = place;
+					}
+				}
+			}
+			place++;
+		}
+		//OK! We have both of the zeroes now. Lets do some sloping!
+		if(zero2!=0)
+		{
+			int slope1 = 0;
+			int slope2 = 0;
+			//if(max < min) //maximum was found first
+			//{
+				slope1 = samples[max]/(zero1-start);
+				slope2 = samples[min]/(zero2-zero1);
+				value = samples[min];
+				for(int x = start; x<zero1; ++x)
+				{
+					samples[x] = slope1*x;
+				}
+				for(int y = zero1; y<zero2; ++y)
+				{
+					samples[y] = value;
+					value -= slope2;
+				}
+			//}
+			start = zero2;
+		}
+	}
+	//add in check to see if we went too far
+	
+}
+*/
 ////////////////////////////////////////////
 // END DISTORTER BASE IMPLEMENTATIONS
 ////////////////////////////////////////////
@@ -128,21 +247,6 @@ void runFrequencyDetection(int *samples, int start, int stop){
 	detectFrequency(subSamples, stop - start);
 }
 
-void fadeByAmount(int *samples, int numSamples, int samplesToFadeOut){
-	i = numSamples - samplesToFadeOut;
-	
-	if( i < 0 )
-		i = 0;
-	
-	float fadeIncrement = 1.0 / (numSamples - i);
-	float currentIncrement = 1.0 - fadeIncrement;
-	
-	for(i=numSamples - samplesToFadeOut; i<numSamples; ++i){
-		data[i] = (int) data[i] * currentIncrement;
-		currentIncrement -= fadeIncrement;
-	}
-}
-
 int
 main(int argc,char **argv)
     {
@@ -192,7 +296,7 @@ main(int argc,char **argv)
 	// then make an array of that size for our window
 	numSamples = rra->samples;
 	sampleRate = rra->sampleRate;
-	int *fSamples = malloc( sizeof(int) * numSamples );
+	int *fSamples;
 	getSubarray(rra->data[0], &fSamples, 0, samplesPerFrequencySample);
 	
 	// Find the frequency at the start
@@ -202,40 +306,16 @@ main(int argc,char **argv)
 	if( segmentsPerSecond == -1 )
 		segmentsPerSecond = (int) (sampleRate / (segmentsSubdivide * currentFrequencySamples));
 	
-	sWindow = sampleRate / segmentsPerSecond;
+	
+	if(distorterType == DISTORTER_SAWTOOTH)
+		sWindow = currentFrequencySamples;
+	else
+		sWindow = sampleRate / segmentsPerSecond;
 	int window[sWindow];
-	int samplesToFadeOut = (int) sampleRate * fadeOut;
-	
-	// So, they entered total clip length, which means we need to convert
-	// from total clip length to percentage increase...
-	// Which would be: clip length that we want / original length of clip
-	// ex: if we wanted a clip to be 5 seconds long, and it's originally
-	// 1 second long (44,100 samples @ 44,100 samples/s) then we'd have
-	// a length multiplier = 5 / 1 = 5;
-	float lengthMultiplier = secondsToExtend / (numSamples / sampleRate) ;
-	
-	// We don't handle shortening
-	if( lengthMultiplier < 1.0 )
-		lengthMultiplier = 1.0;
 	
 	// Now, extend the clip by the amount specified
 	int *data;
-	rra->samples = extendClip(rra->data[0], &data, numSamples, lengthMultiplier);
-	numSamples = rra->samples;
-	
-	// Figure out where to start the fadeout
-	//i = numSamples - samplesToFadeOut;
-	
-	//if( i < 0 )
-		//i = 0;
-	
-	//float fadeIncrement = 1.0 / (numSamples - i);
-	//float currentIncrement = 1.0 - fadeIncrement;
-	
-	//for(i=numSamples - samplesToFadeOut; i<numSamples; ++i){
-		//data[i] = (int) data[i] * currentIncrement;
-		//currentIncrement -= fadeIncrement;
-	//}
+	extendClip(rra->data[0], &data, numSamples, 1.0);
 	
 	// Only print out the header if we're not looking for verbose
 	// frequency output
@@ -273,6 +353,8 @@ main(int argc,char **argv)
 				distortFollow(window, sWindow, avg, clippingCutoff);
 			else if(distorterType == DISTORTER_INVERT_CUTOFF)
 				distortFollow(window, sWindow, avg, clippingInvertCutoff);
+			else if(sWindow = sampleRate / segmentsPerSecond)
+				distortSawtooth(window, sWindow);
 			else
 				printArray(window, sWindow);
 		}
@@ -289,19 +371,17 @@ main(int argc,char **argv)
  * Compares two strings for equality.
  */
 static bool
-comp(char *left, const char *right){
+comp(char *left, char *right){
 	int index = 0;
 	bool matches = true;
 	
-	while( left[index] != 0 && right[index] != 0){
+	while( left[index] != 0 || right[index] != 0){
 		if( left[index] != right[index] )
 			matches = false;
 		
 		++index;
 	}
 	
-	// if either isn't equal to the terminating character
-	// then it wasn't finished processing.
 	if( left[index] != 0 || right[index] != 0 )
 		matches = false;
 	
@@ -350,11 +430,6 @@ processOptions(int argc, char **argv)
 				argUsed = 1;
 				break;
 			}
-			case 'f':{
-				fadeOut = atof(arg);
-				argUsed = 1;
-				break;
-			}
 			case 'h':{
 				printf("usage: distorter [args] [input, [output]]\n");
 				printf("-c [N]: specifies the factor at which to begin cutting off the signal. Default is 1.0 (higher gives less cuttoff)\n");
@@ -363,7 +438,6 @@ processOptions(int argc, char **argv)
 				printf("\t0 - Normal distorter that continues to clip even as the amplitude drops off\n");
 				printf("\t1 - Flat line distorter that only cuts signals off over a single magnitude\n");
 				printf("\t2 - Inverted cutoff distorter that flips the amplitudes beyond the cutoff limit over the cutoff limit\n");
-				printf("-f [N]: specifies the number of seconds to fade out over. Default is 0. \n");
 				printf("-h - prints this help dialog\n");
 				printf("-l [N] - extends the sample to the specified length\n");
 				printf("-p - print out frequency information, suppresses amplitude dump\n");
@@ -396,7 +470,6 @@ processOptions(int argc, char **argv)
 			}
 			case 't':{
 				int type = -1;
-				
 				if( comp( arg, TYPE_DEFAULT )) {
 					type = 0;
 					distorterType = DISTORTER_FOLLOW;
@@ -405,11 +478,11 @@ processOptions(int argc, char **argv)
 					distorterType = DISTORTER_INVERT_CUTOFF;
 					cutOffMag = 0.2;
 					multiplier = 2.0;
-				} else if( comp( arg, TYPE_METAL )) {
+				}
+				else if( comp(arg, TYPE_SAWTOOTH))
+				{
 					type = 2;
-					distorterType = DISTORTER_INVERT_CUTOFF;
-					cutOffMag = 0.05;
-					multiplier = 10.0;
+					distorterType = DISTORTER_SAWTOOTH;
 				}
 				
 				if( type == -1 ) {
