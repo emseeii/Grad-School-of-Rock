@@ -98,7 +98,7 @@ int distortSawtooth(int* samples, int size)
 	place = 0;
 	while(place < size)
 	{
-		samples[place] = min+(slope*place);
+		samples[place] += min+(slope*place);
 		//printf("Sample2:%d , Max:%d , Min:%d \n", samples[place], max, min);
 		printf("%d\n", samples[place]);
 		place++;
@@ -111,88 +111,6 @@ int distortSawtooth(int* samples, int size)
 	return 0;
 }
 
-
-/**
-* Distorts the wave into a sawtooth pattern
-
-int distortSawtooth(int* samples, int size)
-{
-	
-	while(place<size)
-	{
-		int place = 0;
-		int start = 0;
-		int max = -5000;
-		int min = 5000;
-		int zero1 = 0;
-		int zero2 = 0;
-		int goingUp = 0;
-		if(samples[place]<samples[place+1])
-			goingUp = 1;
-		start = place;
-		while((zero2 == 0) && place<size)
-		{
-			if(goingUp)
-			{
-				if(samples[place]>samples[max])
-					max = place;
-				else goingUp = 0;
-				if(place+1<size)
-				{
-					if(samples[place]<0 && samples[place+1]>=0)
-					{
-						if(zero1 == 0)
-							zero1 = place;
-						else
-							zero2 = place;
-					}
-				}
-			}
-			else
-			{
-				if(samples[place]<samples[min])
-					min = place;
-				else goingUp = 1;
-				if(place+1<size)
-				{
-					if(samples[place]>0 && samples[place+1]<=0)
-					{
-						if(zero1 == 0)
-							zero1 = place;
-						else
-							zero2 = place;
-					}
-				}
-			}
-			place++;
-		}
-		//OK! We have both of the zeroes now. Lets do some sloping!
-		if(zero2!=0)
-		{
-			int slope1 = 0;
-			int slope2 = 0;
-			//if(max < min) //maximum was found first
-			//{
-				slope1 = samples[max]/(zero1-start);
-				slope2 = samples[min]/(zero2-zero1);
-				value = samples[min];
-				for(int x = start; x<zero1; ++x)
-				{
-					samples[x] = slope1*x;
-				}
-				for(int y = zero1; y<zero2; ++y)
-				{
-					samples[y] = value;
-					value -= slope2;
-				}
-			//}
-			start = zero2;
-		}
-	}
-	//add in check to see if we went too far
-	
-}
-*/
 ////////////////////////////////////////////
 // END DISTORTER BASE IMPLEMENTATIONS
 ////////////////////////////////////////////
