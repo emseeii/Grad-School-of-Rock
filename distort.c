@@ -1,5 +1,5 @@
 /*
- * Written by Conner Hansen, {add yourself here as you make modifications}
+ * Written by Conner Hansen, Joseph Blackwell, {add yourself here as you make modifications}
  */
 
 #include <stdio.h>
@@ -20,10 +20,12 @@ const char *TYPE_DEFAULT = "default";
 const char *TYPE_GRUFF = "gruff";
 const char *TYPE_METAL = "metal";
 const char *TYPE_SAWTOOTH = "sawtooth";
+const char *TYPE_SUBHARMONIC = "subharm";
 const int DISTORTER_FOLLOW = 0;
 const int DISTORTER_AMPLITUDE = 1;
 const int DISTORTER_INVERT_CUTOFF = 2;
 const int DISTORTER_SAWTOOTH = 3;
+const int DISTORTER_SUBHARMONIC = 4;
 
 float cutOffMag = 1.00; // What multiple of the current avg gets clipped
 float fadeOut = 0.0; // How long of a fade out should we use
@@ -111,6 +113,25 @@ int distortSawtooth(int* samples, int size)
 		//scanf("%d", &number);
 	
 	return 0;
+}
+
+/**
+ * Distort by adding subharmonic waves to the signal
+ * (Probably sounds like crap)
+ */
+int distortSubHarm(int* samples, int size, int avg, void (*f)(int, int))
+{
+	int i;
+	
+	for(i=0; i<size; ++i){
+		
+		// Is the magnitude of the sample out of bounds for us?
+		if( abs(samples[i]) < (cutOffMag * avg ) )
+			printf("%d\n", (int) (multiplier * samples[i]));
+		// Yes? Okay, send to whatever our cutoff algorithm is
+		else 
+			(*f)(samples[i], avg);
+	}
 }
 
 ////////////////////////////////////////////
@@ -448,6 +469,9 @@ processOptions(int argc, char **argv)
 					distorterType = DISTORTER_INVERT_CUTOFF;
 					cutOffMag = 0.05;
 					multiplier = 10.0;
+				} else if( comp( arg, TYPE_SUBHARMONIC )) {
+					type = 0;
+					distorterType = DISTORTER_SUBHARMONIC;
 				}
 				
 				if( type == -1 ) {
