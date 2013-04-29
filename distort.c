@@ -20,7 +20,7 @@ const char *TYPE_DEFAULT = "default";
 const char *TYPE_GRUFF = "gruff";
 const char *TYPE_METAL = "metal";
 const char *TYPE_SAWTOOTH = "sawtooth";
-const char *TYPE_SUBHARMONIC = "subharm";
+const char *TYPE_SUBHARMONIC = "subharmonic";
 const int DISTORTER_FOLLOW = 0;
 const int DISTORTER_AMPLITUDE = 1;
 const int DISTORTER_INVERT_CUTOFF = 2;
@@ -116,21 +116,72 @@ int distortSawtooth(int* samples, int size)
 }
 
 /**
- * Distort by adding subharmonic waves to the signal
+ * Distort by adding subharmonic sine waves to the signal
+ * if the signal crosses the cutoff line
  * (Probably sounds like crap)
  */
-int distortSubHarm(int* samples, int size, int avg, void (*f)(int, int))
+void distortSubHarmonic(int* samples, int size, int avg, void (*f)(int, int))
 {
 	int i;
+	int subharm[size];
+	double pi = 3.141592653589793238;
+	//initially, there is no subharmonic
+	for(i = 0; i < size; i++)
+	{
+		subharm[i] = 0;
+	}
 	
-	for(i=0; i<size; ++i){
+	for(i = 0; i < size; i++)
+	{
+		samples[i] += subharm[i];
 		
-		// Is the magnitude of the sample out of bounds for us?
-		if( abs(samples[i]) < (cutOffMag * avg ) )
-			printf("%d\n", (int) (multiplier * samples[i]));
-		// Yes? Okay, send to whatever our cutoff algorithm is
-		else 
-			(*f)(samples[i], avg);
+		// Is the magnitude of the sample out of bounds?
+		if(abs(samples[i]) > (cutOffMag * avg))
+		{
+			int j;
+			int sub[size-i];
+			int max = 0;
+			double amp = 0;
+			int freq = 0;
+			//find the max amplitude and 1/2 freq of the generated subharmonic
+			for(j = i; j < size; j++)
+			{
+				if(abs(samples[i]) > (cutOffMag * avg))
+				{
+					if(abs(samples[i]) > max)
+					{
+						max = abs(samples[i]);
+						amp = max - (cutOffMag * avg);
+					}
+					//this is another sample above the line, so increase the freq by one sample
+					freq++;
+				}
+				else //exit the for loop
+					j = size;
+			}
+			
+			//slope of the decay line
+			double m = (-amp)/(size-i);
+			//generate the new sine wave to be added
+			for(j = 0; j < (size-i); j++)
+			{
+				double n = m*(double)j+amp;
+				int newamp = (int)n;
+				if(samples[i] > 0)
+					sub[j] = -newamp*sin(j*pi/freq);
+				else
+					sub[j] = newamp*sin(j*pi/freq);
+			}
+			
+			//add the new subharmony to the subharm array
+			for(j = 0; j < size-i; j++)
+			{
+				subharm[i+j] += sub[j];
+			}
+		}
+		
+		//output the sample
+		printf("%d\n", (int) (multiplier * samples[i]));
 	}
 }
 
@@ -266,7 +317,7 @@ main(int argc,char **argv)
 		segmentsPerSecond = (int) (sampleRate / (segmentsSubdivide * currentFrequencySamples));
 	
 	
-	if(distorterType == DISTORTER_SAWTOOTH)
+	if(distorterType == DISTORTER_SAWTOOTH || distorterType == DISTORTER_SUBHARMONIC)
 		sWindow = currentFrequencySamples;
 	else
 		sWindow = sampleRate / segmentsPerSecond;
@@ -330,6 +381,8 @@ main(int argc,char **argv)
 				distortFollow(window, sWindow, avg, clippingInvertCutoff);
 			else if(distorterType == DISTORTER_SAWTOOTH)
 				distortSawtooth(window, sWindow);
+			else if(distorterType == DISTORTER_SUBHARMONIC)
+				distortSubHarmonic(window, sWindow, avg, clippingCutoff);
 			else
 				printArray(window, sWindow);
 		}
