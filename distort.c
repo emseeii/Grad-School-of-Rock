@@ -21,14 +21,17 @@ const char *TYPE_GRUFF = "gruff";
 const char *TYPE_METAL = "metal";
 const char *TYPE_SAWTOOTH = "sawtooth";
 const char *TYPE_SUBHARMONIC = "subharmonic";
+const char *TYPE_NONE = "none";
 const int DISTORTER_FOLLOW = 0;
 const int DISTORTER_AMPLITUDE = 1;
 const int DISTORTER_INVERT_CUTOFF = 2;
 const int DISTORTER_SAWTOOTH = 3;
 const int DISTORTER_SUBHARMONIC = 4;
+const int DISTORTER_NONE = 6;
 
 float cutOffMag = 1.00; // What multiple of the current avg gets clipped
 float fadeOut = 0.0; // How long of a fade out should we use
+float freqMultiplier = 1.0; // multiplier for subharmonic wave
 int segmentsPerSecond = -1; // Number of sample windows to evaluate per second
 double segmentsSubdivide = 1.0; // Number of times to divide the segments
 int samplesPerFrequencySample = 16000;
@@ -168,9 +171,9 @@ void distortSubHarmonic(int* samples, int size, int avg, void (*f)(int, int))
 				double n = m*(double)j+amp;
 				int newamp = (int)n;
 				if(samples[i] > 0)
-					sub[j] = -newamp*sin(j*pi/freq);
+					sub[j] = -newamp*sin( (j*pi/freq) * freqMultiplier);
 				else
-					sub[j] = newamp*sin(j*pi/freq);
+					sub[j] = newamp*sin(j*pi/freq * freqMultiplier);
 			}
 			
 			//add the new subharmony to the subharm array
@@ -476,6 +479,7 @@ processOptions(int argc, char **argv)
 				printf("-f [N]: specifies the number of seconds to fade out over. Default is 0. \n");
 				printf("-h - prints this help dialog\n");
 				printf("-l [N] - extends the sample to the specified length\n");
+				printf("-m [N] - frequency multiplier to be used to increase or decrease the subharmonic frequency used in the subharmonic distorter\n");
 				printf("-p - print out frequency information, suppresses amplitude dump\n");
 				printf("-t - use a template\n");
 				printf("\tdefault - use all default settings, gives a lessened distortion effect\n");
@@ -488,6 +492,11 @@ processOptions(int argc, char **argv)
 			}
 			case 'l':{
 				secondsToExtend = atof(arg);
+				argUsed = 1;
+				break;
+			}
+			case 'm':{
+				freqMultiplier = atof(arg);
 				argUsed = 1;
 				break;
 			}
@@ -525,6 +534,9 @@ processOptions(int argc, char **argv)
 				} else if( comp( arg, TYPE_SUBHARMONIC )) {
 					type = 0;
 					distorterType = DISTORTER_SUBHARMONIC;
+				} else if( comp( arg, TYPE_NONE )) {
+					type = 0;
+					distorterType = DISTORTER_NONE;
 				}
 				
 				if( type == -1 ) {
