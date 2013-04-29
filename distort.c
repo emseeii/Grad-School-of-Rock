@@ -176,9 +176,9 @@ void distortSubHarmonic(int* samples, int size, int avg, void (*f)(int, int))
 				double n = m*(double)j+amp;
 				int newamp = (int)n;
 				if(samples[i] > 0)
-					sub[j] = -newamp*sin((j*pi)/(freq * freqMultiplier));
+					sub[j] = multiplier*(-newamp*sin((j*pi)/(freq * freqMultiplier)));
 				else
-					sub[j] = newamp*sin((j*pi)/(freq * freqMultiplier));
+					sub[j] = multiplier*(newamp*sin((j*pi)/(freq * freqMultiplier)));
 			}
 			
 			//add the new subharmony to the subharm array
