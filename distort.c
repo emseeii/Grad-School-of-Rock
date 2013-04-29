@@ -164,20 +164,25 @@ void distortSubHarmonic(int* samples, int size, int avg, void (*f)(int, int))
 			}
 			
 			//slope of the decay line
-			double m = (-amp)/(size-i);
+			int limit;
+			if(size-i < 8000)
+				limit = size-i;
+			else
+				limit = 8000;
+			double m = (-amp)/(limit);
 			//generate the new sine wave to be added
-			for(j = 0; j < (size-i); j++)
+			for(j = 0; j < limit; j++)
 			{
 				double n = m*(double)j+amp;
 				int newamp = (int)n;
 				if(samples[i] > 0)
-					sub[j] = -newamp*sin( (j*pi/freq) * freqMultiplier);
+					sub[j] = -newamp*sin((j*pi/freq) * freqMultiplier);
 				else
 					sub[j] = newamp*sin(j*pi/freq * freqMultiplier);
 			}
 			
 			//add the new subharmony to the subharm array
-			for(j = 0; j < size-i; j++)
+			for(j = 0; j < limit; j++)
 			{
 				subharm[i+j] += sub[j];
 			}
