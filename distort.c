@@ -501,6 +501,7 @@ processOptions(int argc, char **argv)
 				printf("-l [N] - extends the sample to the specified length\n");
 				printf("-m [N] - frequency multiplier to be used to increase or decrease the subharmonic frequency used in the subharmonic distorter\n");
 				printf("-p - print out frequency information, suppresses amplitude dump\n");
+				printf("-q - multiplier for the square wave. Higher values create a more square square wave\n");
 				printf("-t - use a template\n");
 				printf("\tdefault - use all default settings, gives a lessened distortion effect\n");
 				printf("\tgruff - use rougher settings, more of a metal sound\n");
