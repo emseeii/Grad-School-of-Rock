@@ -21,12 +21,14 @@ const char *TYPE_GRUFF = "gruff";
 const char *TYPE_METAL = "metal";
 const char *TYPE_SAWTOOTH = "sawtooth";
 const char *TYPE_SUBHARMONIC = "subharmonic";
+const char *TYPE_SCREECH = "screech";
 const char *TYPE_NONE = "none";
 const int DISTORTER_FOLLOW = 0;
 const int DISTORTER_AMPLITUDE = 1;
 const int DISTORTER_INVERT_CUTOFF = 2;
 const int DISTORTER_SAWTOOTH = 3;
 const int DISTORTER_SUBHARMONIC = 4;
+const int DISTORTER_SQUARE = 5;
 const int DISTORTER_NONE = 6;
 
 float cutOffMag = 1.00; // What multiple of the current avg gets clipped
@@ -37,6 +39,7 @@ double segmentsSubdivide = 1.0; // Number of times to divide the segments
 int samplesPerFrequencySample = 16000;
 int distorterType = 0; // What distorter are we using?
 float multiplier = 1.0; // What should the final output be multiplied by?
+int squareMultiplier = 1; // How much to elongate wave?
 float secondsToExtend = 0; // How long should the sample be elongated?
 
 static int processOptions(int,char **);
@@ -276,7 +279,7 @@ main(int argc,char **argv)
 	currentFrequency = 0.0;
 	verbose = false;
 
-    int i, j, counter, sWindow, avg, numSamples;
+    int i, j, k, counter, sWindow, avg, numSamples;
     FILE *in,*out;
     RRA *rra;
     
@@ -391,6 +394,13 @@ main(int argc,char **argv)
 				distortSawtooth(window, sWindow);
 			else if(distorterType == DISTORTER_SUBHARMONIC)
 				distortSubHarmonic(window, sWindow, avg, clippingCutoff);
+			else if(distorterType == DISTORTER_SQUARE) {
+                //elongate the wave before clipping
+                for(k=0; k<sWindow; ++k) {
+                    window[k] = window[k] * squareMultiplier;
+                }
+                distortFollow(window, sWindow, avg, clippingCutoff);
+            }
 			else
 				printArray(window, sWindow);
 		}
@@ -468,6 +478,11 @@ processOptions(int argc, char **argv)
 				argUsed = 1;
 				break;
 			}
+			case 'q':{
+				squareMultiplier = atof(arg);
+				argUsed = 1;
+				break;
+			}
 			case 'f':{
 				fadeOut = atof(arg);
 				argUsed = 1;
@@ -539,6 +554,11 @@ processOptions(int argc, char **argv)
 				} else if( comp( arg, TYPE_SUBHARMONIC )) {
 					type = 0;
 					distorterType = DISTORTER_SUBHARMONIC;
+				} else if( comp( arg, TYPE_SCREECH )) {
+                    type = 0;
+					distorterType = DISTORTER_SQUARE;
+					cutOffMag = 0.75;
+                    squareMultiplier = 6;
 				} else if( comp( arg, TYPE_NONE )) {
 					type = 0;
 					distorterType = DISTORTER_NONE;
